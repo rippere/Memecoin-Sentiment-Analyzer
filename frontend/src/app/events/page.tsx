@@ -47,7 +47,7 @@ export default function EventsPage() {
   }, [API_URL])
 
   // Get unique event types for filtering
-  const eventTypes = ['all', ...new Set(events.map(e => e.event_type))]
+  const eventTypes = ['all', ...Array.from(new Set(events.map(e => e.event_type)))]
 
   // Filter events
   const filteredEvents = filter === 'all'

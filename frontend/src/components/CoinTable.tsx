@@ -8,19 +8,8 @@
 'use client'  // Required for sorting state
 
 import { useState } from 'react'
-
-interface Coin {
-  symbol: string
-  name: string
-  price: number | null
-  change_24h: number | null
-  sentiment: number | null
-  hype_score: number | null
-}
-
-interface CoinTableProps {
-  coins: Coin[]
-}
+import Link from 'next/link'
+import type { Coin, CoinTableProps } from '@/types'
 
 export function CoinTable({ coins }: CoinTableProps) {
   // State for sorting
@@ -113,9 +102,14 @@ export function CoinTable({ coins }: CoinTableProps) {
         <tbody className="divide-y divide-gray-800">
           {sortedCoins.map((coin) => (
             <tr key={coin.symbol} className="hover:bg-bg-secondary/50 transition-colors">
-              {/* Symbol - bold */}
-              <td className="px-4 py-3 font-mono font-bold text-accent">
-                {coin.symbol}
+              {/* Symbol - clickable link */}
+              <td className="px-4 py-3 font-mono font-bold">
+                <Link
+                  href={`/coins/${coin.symbol.toLowerCase()}`}
+                  className="text-accent hover:text-accent/80 hover:underline transition-colors"
+                >
+                  {coin.symbol}
+                </Link>
               </td>
 
               {/* Name */}

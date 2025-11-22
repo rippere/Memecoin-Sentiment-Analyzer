@@ -1,0 +1,98 @@
+# Memecoin Price Data Collection (Lightweight)
+# =============================================
+# A minimal workflow that ONLY collects price data from CoinGecko
+# This is optimized to stay well within GitHub Actions free tier limits
+#
+# Estimated usage:
+# - Every 60 minutes = 720 runs/month
+# - ~1 minute per run = ~720 minutes/month (well under 2,000 limit)
+
+name: Collect Price Data
+
+on:
+  # Scheduled runs - every hour (safer for free tier)
+  schedule:
+    - cron: '0 * * * *'  # Every hour at minute 0
+
+  # Manual trigger
+  workflow_dispatch:
+
+concurrency:
+  group: price-collection
+  cancel-in-progress: false
+
+jobs:
+  collect-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5  # Price collection should be very fast
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install minimal dependencies
+        run: |
+          pip install requests pandas sqlalchemy python-dateutil pyyaml
+
+      - name: Create directories
+        run: mkdir -p data logs
+
+      - name: Collect price data
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+
+          from collectors.price_collector import PriceCollector
+          from database.db_manager import DatabaseManager
+          from datetime import datetime
+
+          print('Starting price collection at', datetime.now())
+
+          # Initialize
+          db = DatabaseManager()
+          collector = PriceCollector()
+
+          # Fetch prices for all coins
+          coin_symbols = list(collector.COIN_IDS.keys())
+          print(f'Collecting prices for: {coin_symbols}')
+
+          price_data = collector.fetch_coin_data(coin_symbols)
+
+          # Save to database
+          count = 0
+          for symbol, data in price_data.items():
+              try:
+                  db.add_price(symbol, data)
+                  count += 1
+                  print(f'  {symbol}: \${data[\"price_usd\"]:.8f}')
+              except Exception as e:
+                  print(f'  Error saving {symbol}: {e}')
+
+          print(f'Successfully collected {count} prices')
+
+          # Cleanup
+          collector.close()
+          db.close()
+          "
+
+      - name: Commit data changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          git add data/ 2>/dev/null || true
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Price data: $(date -u +%Y-%m-%d\ %H:%M\ UTC)"
+            git push
+            echo "Data committed and pushed"
+          fi

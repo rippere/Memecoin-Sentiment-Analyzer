@@ -7,6 +7,7 @@
 
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import Link from 'next/link'
 import './globals.css'
 
 // Load the Inter font (clean, modern look)
@@ -37,10 +38,10 @@ export default function RootLayout({
 
             {/* Navigation Links */}
             <div className="flex gap-6">
-              <a href="/" className="hover:text-accent transition-colors">Dashboard</a>
-              <a href="/coins" className="hover:text-accent transition-colors">Coins</a>
-              <a href="/sentiment" className="hover:text-accent transition-colors">Sentiment</a>
-              <a href="/events" className="hover:text-accent transition-colors">Events</a>
+              <Link href="/" className="hover:text-accent transition-colors">Dashboard</Link>
+              <Link href="/coins" className="hover:text-accent transition-colors">Coins</Link>
+              <Link href="/sentiment" className="hover:text-accent transition-colors">Sentiment</Link>
+              <Link href="/events" className="hover:text-accent transition-colors">Events</Link>
             </div>
           </div>
         </nav>

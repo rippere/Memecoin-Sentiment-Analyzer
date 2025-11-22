@@ -1,0 +1,190 @@
+# Memecoin Sentiment Analyzer - Scheduled Data Collection
+# ========================================================
+# This workflow collects cryptocurrency price and sentiment data on a schedule
+#
+# IMPORTANT NOTES:
+# - Selenium-based scrapers (TikTok, Reddit) will NOT work in GitHub Actions
+#   because there's no browser available. Only PRICE collection is enabled by default.
+# - To enable social media collection, you'd need a headless browser setup
+#   or switch to API-based collection methods.
+#
+# GitHub Actions Free Tier: 2,000 minutes/month
+# Running every 30 min = ~1,440 runs/month (each run ~2-5 minutes)
+# Estimated usage: ~3,000-7,000 minutes/month (may exceed free tier)
+# Consider running every 60 minutes for safer usage (~1,500-3,500 min/month)
+
+name: Collect Memecoin Data
+
+on:
+  # Scheduled runs (cron syntax - UTC timezone)
+  schedule:
+    # Every 30 minutes
+    - cron: '*/30 * * * *'
+
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      collect_prices:
+        description: 'Collect price data'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      collect_social:
+        description: 'Collect social media data (may fail - requires browser)'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+# Prevent multiple runs from overlapping
+concurrency:
+  group: data-collection
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  collect-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10  # Fail fast if something hangs
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history for proper git operations
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+
+          # Install base requirements
+          pip install -r requirements.txt
+
+          # Install scraper requirements (includes APScheduler, sentiment tools)
+          pip install -r requirements_scrapers.txt
+
+          # Install SQLAlchemy for database operations
+          pip install sqlalchemy
+
+      - name: Create required directories
+        run: |
+          mkdir -p data
+          mkdir -p logs
+
+      - name: Run data collection (Scheduled)
+        if: github.event_name == 'schedule'
+        env:
+          TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+        run: |
+          echo "Starting scheduled data collection at $(date)"
+
+          # Run price collection only (social media requires browser)
+          # Use --mode once to run a single collection and exit
+          python schedule_optimized.py --mode once --no-social --no-quality-checks
+
+          echo "Collection completed at $(date)"
+
+      - name: Run data collection (Manual)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+        run: |
+          echo "Starting manual data collection at $(date)"
+
+          # Build command based on inputs
+          CMD="python schedule_optimized.py --mode once"
+
+          if [ "${{ github.event.inputs.collect_prices }}" == "false" ]; then
+            CMD="$CMD --no-prices"
+          fi
+
+          if [ "${{ github.event.inputs.collect_social }}" == "false" ]; then
+            CMD="$CMD --no-social"
+          fi
+
+          # Disable quality checks to speed up CI runs
+          CMD="$CMD --no-quality-checks"
+
+          echo "Running: $CMD"
+          $CMD
+
+          echo "Collection completed at $(date)"
+
+      - name: Show collection results
+        run: |
+          echo "=== Database Status ==="
+          if [ -f "data/memecoin.db" ]; then
+            echo "Database file exists: $(ls -lh data/memecoin.db)"
+
+            # Show some stats using sqlite3
+            sqlite3 data/memecoin.db <<EOF
+          SELECT 'Prices collected:' AS info, COUNT(*) AS count FROM prices;
+          SELECT 'Latest price:' AS info, symbol, price_usd, timestamp
+            FROM prices ORDER BY timestamp DESC LIMIT 1;
+          EOF
+          else
+            echo "No database file found"
+          fi
+
+          echo ""
+          echo "=== Log Files ==="
+          if [ -d "logs" ] && [ "$(ls -A logs 2>/dev/null)" ]; then
+            tail -50 logs/scheduler_optimized.log 2>/dev/null || echo "No scheduler log found"
+          else
+            echo "No log files found"
+          fi
+
+      - name: Commit and push data changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          # Add data files
+          git add data/ 2>/dev/null || true
+          git add logs/ 2>/dev/null || true
+          git add *.csv 2>/dev/null || true
+          git add *.json 2>/dev/null || true
+
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            # Create commit with timestamp
+            TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+            git commit -m "Data collection: $TIMESTAMP
+
+            Automated data collection via GitHub Actions
+
+            - Price data: CoinGecko API
+            - Run type: ${{ github.event_name }}"
+
+            # Push changes
+            git push
+            echo "Changes committed and pushed successfully"
+          fi
+
+  # Optional: Notify on failure
+  notify-failure:
+    needs: collect-data
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log failure
+        run: |
+          echo "Data collection failed at $(date)"
+          echo "Check the workflow logs for details"
+          # Add notification logic here (Slack, Discord, email, etc.)
