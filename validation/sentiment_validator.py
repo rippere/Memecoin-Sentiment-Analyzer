@@ -239,7 +239,7 @@ class SentimentValidator:
         # Count frequencies
         from collections import Counter
         positive_freq = Counter(positive_tokens)
-        negative_freq = Counter(negative_freq)
+        negative_freq = Counter(negative_tokens)
 
         # Filter to crypto-relevant terms (simple heuristic)
         crypto_terms = ['moon', 'rocket', 'lambo', 'hodl', 'dump', 'crash', 'pump',
