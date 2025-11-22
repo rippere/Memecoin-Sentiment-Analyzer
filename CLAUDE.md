@@ -209,19 +209,75 @@ When scrapers fail:
 
 ## File Structure
 ```
-├── meme_coin_tracker.py           # Price data collection
+├── schedule_optimized.py          # Main scheduler (prices 15min, social 60min)
+├── schedule_collection.py         # DEPRECATED - use schedule_optimized.py
+├── meme_coin_tracker.py           # Price data collection (standalone)
 ├── twitter_hype_collector.py      # Twitter sentiment collection
 ├── backtest_analyzer.py           # Statistical analysis
-├── test_scrapers.py               # Scraper validation
-├── requirements.txt               # Base dependencies
-├── requirements_scrapers.txt      # Scraper dependencies
-├── README.md                      # Setup guide for beginners
-├── SCRAPER_GUIDE.md              # Scraper system documentation
-├── scrapers/
-│   ├── base_scraper.py           # Base scraper class
+├── sync_to_github.sh              # Auto-sync to GitHub repo
+│
+├── api/                           # FastAPI backend
+│   ├── main.py                   # API endpoints (rate-limited)
+│   └── requirements.txt          # API dependencies
+│
+├── collectors/                    # Data collection modules
+│   ├── unified_collector.py      # Orchestrates all collectors
+│   ├── price_collector.py        # CoinGecko price data
+│   ├── reddit_collector.py       # Reddit data collection
+│   ├── tiktok_collector.py       # TikTok data collection
+│   ├── sentiment_analyzer.py     # VADER sentiment + hype scoring
+│   ├── bot_detector.py           # Bot/spam detection
+│   ├── quality_monitor.py        # Data quality checks
+│   ├── influencer_tracker.py     # Track key influencers
+│   └── news_collector.py         # News aggregation
+│
+├── scrapers/                      # Selenium-based web scrapers
+│   ├── base_scraper.py           # Base class with anti-detection
 │   ├── tiktok_scraper.py         # TikTok hashtag scraper
 │   └── reddit_scraper.py         # Reddit search scraper
-├── meme_coin_data.csv            # Historical price data (generated)
-├── test_tiktok_results.json      # Scraper test output (generated)
-└── test_reddit_results.json      # Scraper test output (generated)
+│
+├── database/                      # Database layer
+│   ├── models.py                 # SQLAlchemy ORM models
+│   └── db_manager.py             # Database operations
+│
+├── analysis/                      # Data analysis modules
+│   ├── correlation_analyzer.py   # Price-sentiment correlation
+│   ├── volume_analyzer.py        # Volume spike detection
+│   └── data_pipeline.py          # Data processing pipeline
+│
+├── validation/                    # Sentiment validation
+│   ├── sentiment_validator.py    # Accuracy testing
+│   └── validate_sentiment.py     # Validation runner
+│
+├── events/                        # Event logging
+│   ├── event_logger.py           # Log market events
+│   └── log_event.py              # Event utilities
+│
+├── config/                        # Configuration
+│   ├── coins.yaml                # Coin definitions
+│   └── coin_config.py            # Config loader
+│
+├── utils/                         # Utilities
+│   └── logging_config.py         # Centralized logging
+│
+├── frontend/                      # Next.js dashboard
+│   ├── src/app/                  # App routes
+│   └── src/components/           # React components
+│
+├── tests/                         # Test suite (pytest)
+│   ├── conftest.py               # Shared fixtures
+│   └── unit/                     # Unit tests
+│
+├── docs/                          # Documentation
+│   ├── ARCHITECTURE.md
+│   ├── OPERATIONS_GUIDE.md
+│   └── UI_DESIGN.md
+│
+├── data/                          # Generated data (gitignored)
+│   └── memecoin.db               # SQLite database
+│
+├── logs/                          # Log files (gitignored)
+├── requirements.txt               # Base dependencies
+├── requirements_scrapers.txt      # Scraper dependencies
+└── pytest.ini                     # Test configuration
 ```

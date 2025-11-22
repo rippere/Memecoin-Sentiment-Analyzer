@@ -4,12 +4,16 @@ Database Models for Memecoin Sentiment Analyzer
 SQLAlchemy ORM models for unified data storage
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Boolean, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
 Base = declarative_base()
+
+
+# Composite indexes for common query patterns
+# These significantly improve performance for queries filtering by coin_id + timestamp
 
 
 class Coin(Base):
@@ -37,6 +41,9 @@ class Coin(Base):
 class Price(Base):
     """Price data from CoinGecko"""
     __tablename__ = 'prices'
+    __table_args__ = (
+        Index('ix_prices_coin_timestamp', 'coin_id', 'timestamp'),
+    )
 
     id = Column(Integer, primary_key=True)
     coin_id = Column(Integer, ForeignKey('coins.id'), nullable=False)
@@ -65,6 +72,9 @@ class Price(Base):
 class RedditPost(Base):
     """Reddit post data"""
     __tablename__ = 'reddit_posts'
+    __table_args__ = (
+        Index('ix_reddit_coin_created', 'coin_id', 'created_utc'),
+    )
 
     id = Column(Integer, primary_key=True)
     coin_id = Column(Integer, ForeignKey('coins.id'), nullable=False)
@@ -101,6 +111,9 @@ class RedditPost(Base):
 class TikTokVideo(Base):
     """TikTok video data"""
     __tablename__ = 'tiktok_videos'
+    __table_args__ = (
+        Index('ix_tiktok_coin_scraped', 'coin_id', 'scraped_at'),
+    )
 
     id = Column(Integer, primary_key=True)
     coin_id = Column(Integer, ForeignKey('coins.id'), nullable=False)
@@ -135,6 +148,9 @@ class TikTokVideo(Base):
 class SentimentScore(Base):
     """Aggregated sentiment scores by coin and timeframe"""
     __tablename__ = 'sentiment_scores'
+    __table_args__ = (
+        Index('ix_sentiment_coin_source_ts', 'coin_id', 'source', 'timestamp'),
+    )
 
     id = Column(Integer, primary_key=True)
     coin_id = Column(Integer, ForeignKey('coins.id'), nullable=False)

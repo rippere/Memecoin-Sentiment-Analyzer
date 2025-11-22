@@ -1,12 +1,28 @@
 """
-Automated Data Collection Scheduler
-===================================
-Schedules regular data collection using APScheduler
-Can run continuously or as a service
+Automated Data Collection Scheduler (DEPRECATED)
+=================================================
+⚠️  DEPRECATED: Use schedule_optimized.py instead!
+
+This module uses a single interval for all data collection.
+schedule_optimized.py provides separate intervals for price (15min)
+and social media (60min) collection, which is more efficient.
+
+Usage:
+    python schedule_optimized.py --mode optimized
+
+This file is kept for backwards compatibility only.
 """
 
 import sys
+import warnings
 from pathlib import Path
+
+# Emit deprecation warning
+warnings.warn(
+    "schedule_collection.py is deprecated. Use schedule_optimized.py instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -27,6 +43,8 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+logging.warning("⚠️  schedule_collection.py is DEPRECATED. Use schedule_optimized.py instead.")
 
 
 class CollectionScheduler:
