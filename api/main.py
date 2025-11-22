@@ -6,21 +6,32 @@ FastAPI backend for the dashboard
 
 import sys
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from datetime import datetime, timedelta
 import sqlite3
 import json
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Rate limiter setup
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="Memecoin Sentiment API",
     description="API for cryptocurrency sentiment analysis dashboard",
     version="1.0.0"
 )
+
+# Add rate limiter to app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS for frontend - restrict to known origins
 ALLOWED_ORIGINS = [
@@ -51,21 +62,35 @@ def get_db():
 # ==================== COINS ====================
 
 @app.get("/api/coins")
-async def get_coins():
+@limiter.limit("30/minute")
+async def get_coins(request: Request):
     """Get all tracked coins with latest data"""
     conn = get_db()
     try:
-        # Get coins with latest price and sentiment
+        # Optimized query using JOINs with pre-computed latest values
+        # This avoids N+1 subqueries by getting latest prices/sentiment in CTEs
         query = """
+            WITH latest_prices AS (
+                SELECT coin_id, price_usd, change_24h_pct, market_cap, volume_24h,
+                       ROW_NUMBER() OVER (PARTITION BY coin_id ORDER BY timestamp DESC) as rn
+                FROM prices
+            ),
+            latest_sentiment AS (
+                SELECT coin_id, sentiment_score, hype_score,
+                       ROW_NUMBER() OVER (PARTITION BY coin_id ORDER BY timestamp DESC) as rn
+                FROM sentiment_scores
+            )
             SELECT
                 c.id, c.symbol, c.name, c.is_control, c.is_failed,
-                (SELECT price_usd FROM prices WHERE coin_id = c.id ORDER BY timestamp DESC LIMIT 1) as price,
-                (SELECT change_24h_pct FROM prices WHERE coin_id = c.id ORDER BY timestamp DESC LIMIT 1) as change_24h,
-                (SELECT market_cap FROM prices WHERE coin_id = c.id ORDER BY timestamp DESC LIMIT 1) as market_cap,
-                (SELECT volume_24h FROM prices WHERE coin_id = c.id ORDER BY timestamp DESC LIMIT 1) as volume_24h,
-                (SELECT sentiment_score FROM sentiment_scores WHERE coin_id = c.id ORDER BY timestamp DESC LIMIT 1) as sentiment,
-                (SELECT hype_score FROM sentiment_scores WHERE coin_id = c.id ORDER BY timestamp DESC LIMIT 1) as hype_score
+                p.price_usd as price,
+                p.change_24h_pct as change_24h,
+                p.market_cap,
+                p.volume_24h,
+                s.sentiment_score as sentiment,
+                s.hype_score
             FROM coins c
+            LEFT JOIN latest_prices p ON c.id = p.coin_id AND p.rn = 1
+            LEFT JOIN latest_sentiment s ON c.id = s.coin_id AND s.rn = 1
             ORDER BY c.symbol
         """
         cursor = conn.execute(query)
@@ -389,7 +414,9 @@ async def get_events(
 
 
 @app.post("/api/events")
+@limiter.limit("10/minute")
 async def create_event(
+    request: Request,
     coin_symbol: str,
     category: str,
     description: str,
@@ -420,9 +447,18 @@ async def create_event(
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
+    # Check if database is accessible
+    db_status = "connected"
+    try:
+        conn = get_db()
+        conn.execute("SELECT 1")
+        conn.close()
+    except Exception:
+        db_status = "disconnected"
+
     return {
-        "status": "healthy",
-        "database": str(DB_PATH),
+        "status": "healthy" if db_status == "connected" else "degraded",
+        "database": db_status,  # Don't expose full path
         "timestamp": datetime.utcnow().isoformat()
     }
 
