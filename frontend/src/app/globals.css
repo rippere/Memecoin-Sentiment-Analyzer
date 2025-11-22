@@ -1,0 +1,57 @@
+/*
+ * GLOBAL STYLES
+ * =============
+ * These styles apply to your entire app.
+ * Tailwind CSS handles most styling, but we add custom stuff here.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1f2e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3861fb;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5b7cfc;
+}
+
+/* Card component base style */
+.card {
+  @apply bg-bg-card rounded-xl p-6 border border-gray-800;
+}
+
+/* Sentiment color utilities */
+.sentiment-positive {
+  @apply text-bullish;
+}
+
+.sentiment-negative {
+  @apply text-bearish;
+}
+
+.sentiment-neutral {
+  @apply text-neutral;
+}
+
+/* Loading animation */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.loading {
+  animation: pulse-slow 2s ease-in-out infinite;
+}

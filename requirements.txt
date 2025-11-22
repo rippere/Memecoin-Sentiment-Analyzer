@@ -1,0 +1,6 @@
+# Required Python packages for Meme Coin Tracker
+# Install with: pip install -r requirements.txt
+
+requests>=2.31.0      # For making API calls
+pandas>=2.0.0         # For data manipulation (like Excel in Python)
+openpyxl>=3.1.0      # For Excel file support (we'll use this later)

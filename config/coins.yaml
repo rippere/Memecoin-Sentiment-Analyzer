@@ -1,0 +1,290 @@
+# Meme Coin Configuration
+# Add or remove coins from this list to track them
+# Format: symbol, name, coingecko_id
+
+# CONTROL COINS (for confound analysis)
+control_coins:
+  - symbol: BTC
+    name: Bitcoin
+    coingecko_id: bitcoin
+    is_control: true
+
+  - symbol: ETH
+    name: Ethereum
+    coingecko_id: ethereum
+    is_control: true
+
+# MEME COINS
+coins:
+  # Original Meme Coins
+  - symbol: DOGE
+    name: Dogecoin
+    coingecko_id: dogecoin
+
+  - symbol: SHIB
+    name: Shiba Inu
+    coingecko_id: shiba-inu
+
+  # Popular Meme Coins
+  - symbol: PEPE
+    name: Pepe
+    coingecko_id: pepe
+
+  - symbol: FLOKI
+    name: Floki Inu
+    coingecko_id: floki
+
+  - symbol: WIF
+    name: Dogwifhat
+    coingecko_id: dogwifhat
+
+  - symbol: BONK
+    name: Bonk
+    coingecko_id: bonk
+
+  - symbol: BABYDOGE
+    name: Baby Doge Coin
+    coingecko_id: baby-doge-coin
+
+  - symbol: ELON
+    name: Dogelon Mars
+    coingecko_id: dogelon-mars
+
+  # Newer Meme Coins
+  - symbol: MYRO
+    name: Myro
+    coingecko_id: myro
+
+  - symbol: WEN
+    name: Wen
+    coingecko_id: wen-4
+
+  - symbol: SAMO
+    name: Samoyedcoin
+    coingecko_id: samoyedcoin
+
+  - symbol: DUKO
+    name: Duko
+    coingecko_id: duko
+
+  - symbol: POPCAT
+    name: Popcat
+    coingecko_id: popcat
+
+  - symbol: MEW
+    name: Cat in a Dogs World
+    coingecko_id: cat-in-a-dogs-world
+
+  - symbol: MOODENG
+    name: Moo Deng
+    coingecko_id: moo-deng
+
+  - symbol: PONKE
+    name: Ponke
+    coingecko_id: ponke
+
+  - symbol: BRETT
+    name: Brett
+    coingecko_id: brett
+
+  - symbol: MEME
+    name: Memecoin
+    coingecko_id: memecoin-2
+
+  - symbol: TURBO
+    name: Turbo
+    coingecko_id: turbo
+
+  - symbol: WOJAK
+    name: Wojak
+    coingecko_id: wojak
+
+  - symbol: PEPE2
+    name: Pepe 2.0
+    coingecko_id: pepe-2-0
+
+  - symbol: LADYS
+    name: Milady Meme Coin
+    coingecko_id: milady-meme-coin
+
+  - symbol: MOG
+    name: Mog Coin
+    coingecko_id: mog-coin
+
+  # Additional Popular Meme Coins
+  - symbol: FARTCOIN
+    name: Fartcoin
+    coingecko_id: fartcoin
+
+  - symbol: GIGA
+    name: Gigachad
+    coingecko_id: giga
+
+  - symbol: SPX
+    name: SPX6900
+    coingecko_id: spx6900
+
+  - symbol: NEIRO
+    name: Neiro
+    coingecko_id: neiro
+
+  - symbol: GOAT
+    name: Goatseus Maximus
+    coingecko_id: goatseus-maximus
+
+  - symbol: PNUT
+    name: Peanut the Squirrel
+    coingecko_id: peanut-the-squirrel
+
+  - symbol: ACT
+    name: Act I The AI Prophecy
+    coingecko_id: act-i-the-ai-prophecy
+
+  - symbol: SLERF
+    name: Slerf
+    coingecko_id: slerf
+
+  - symbol: BOME
+    name: Book of Meme
+    coingecko_id: book-of-meme
+
+  - symbol: DOGS
+    name: Dogs
+    coingecko_id: dogs-2
+
+  # Failed/Dead Coins (Control Group)
+  - symbol: SQUID
+    name: Squid Game
+    coingecko_id: squid-game
+    is_failed: true
+    notes: "Rug pull 2021"
+
+  - symbol: TITAN
+    name: Iron Titanium Token
+    coingecko_id: iron-titanium-token
+    is_failed: true
+    notes: "Collapsed 2021"
+
+  - symbol: SAFEMOON
+    name: SafeMoon
+    coingecko_id: safemoon
+    is_failed: true
+    notes: "Down 99% from ATH"
+
+# Search queries for social media (Reddit, TikTok)
+# Add variations and hashtags for each coin
+social_queries:
+  DOGE:
+    - dogecoin
+    - doge
+    - $doge
+    - "#dogecoin"
+    - "#doge"
+
+  SHIB:
+    - shiba
+    - shib
+    - $shib
+    - shiba inu
+    - "#shib"
+    - "#shibarmy"
+
+  PEPE:
+    - pepe
+    - pepecoin
+    - $pepe
+    - "#pepe"
+    - "#pepecoin"
+
+  FLOKI:
+    - floki
+    - $floki
+    - "#floki"
+    - floki inu
+
+  WIF:
+    - wif
+    - dogwifhat
+    - $wif
+    - "#wif"
+
+  BONK:
+    - bonk
+    - $bonk
+    - "#bonk"
+
+  BABYDOGE:
+    - babydoge
+    - baby doge
+    - $babydoge
+
+  ELON:
+    - dogelon
+    - elon mars
+    - $elon
+
+  MYRO:
+    - myro
+    - $myro
+
+  WEN:
+    - wen
+    - $wen
+
+  SAMO:
+    - samo
+    - samoyedcoin
+    - $samo
+
+  DUKO:
+    - duko
+    - $duko
+
+  POPCAT:
+    - popcat
+    - $popcat
+
+  MEW:
+    - mew
+    - cat in dogs world
+    - $mew
+
+  MOODENG:
+    - moodeng
+    - moo deng
+    - $moodeng
+
+  PONKE:
+    - ponke
+    - $ponke
+
+  BRETT:
+    - brett
+    - $brett
+
+  MEME:
+    - memecoin
+    - $meme
+
+  TURBO:
+    - turbo
+    - $turbo
+
+  WOJAK:
+    - wojak
+    - $wojak
+
+  PEPE2:
+    - pepe2
+    - pepe 2.0
+    - $pepe2
+
+  LADYS:
+    - ladys
+    - milady
+    - $ladys
+
+  MOG:
+    - mog
+    - mog coin
+    - $mog
