@@ -12,6 +12,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { PriceChart } from '@/components/charts/PriceChart'
 import { SentimentGauge } from '@/components/SentimentGauge'
+import { AnalysisPanel } from '@/components/AnalysisPanel'
 import type { TimeRange, PricePoint, Coin } from '@/types'
 
 // Coin metadata for display
@@ -295,15 +296,8 @@ export default function CoinDetailPage() {
         </div>
       </div>
 
-      {/* Social Activity Placeholder */}
-      <div className="card">
-        <h2 className="text-xl font-bold mb-4">Social Activity</h2>
-        <div className="text-center py-8 text-text-secondary">
-          <p className="text-4xl mb-2">📊</p>
-          <p>Social activity tracking coming soon</p>
-          <p className="text-sm mt-1">Reddit, TikTok, and Twitter mentions</p>
-        </div>
-      </div>
+      {/* AI Analysis Panel */}
+      <AnalysisPanel symbol={symbol} />
     </div>
   )
 }

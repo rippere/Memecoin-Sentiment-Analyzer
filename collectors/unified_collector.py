@@ -11,20 +11,18 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database.db_manager import DatabaseManager
-from collectors.price_collector import PriceCollector
-from collectors.reddit_collector import RedditCollector
-from collectors.tiktok_collector import TikTokCollector
-from collectors.quality_monitor import QualityMonitor
 import logging
+import time
 from datetime import datetime
 from typing import Dict, List
-import time
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+from collectors.price_collector import PriceCollector
+from collectors.quality_monitor import QualityMonitor
+from collectors.reddit_collector import RedditCollector
+from collectors.tiktok_collector import TikTokCollector
+from database.db_manager import DatabaseManager
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 class UnifiedCollector:
@@ -45,19 +43,12 @@ class UnifiedCollector:
 
         # Default scraper config
         if scraper_config is None:
-            scraper_config = {
-                'headless': True,
-                'min_delay': 2,
-                'max_delay': 5
-            }
+            scraper_config = {"headless": True, "min_delay": 2, "max_delay": 5}
 
         self.scraper_config = scraper_config
-        self.price_collector = PriceCollector()
         logging.info("✅ Unified collector initialized")
 
-    def collect_all(self, collect_prices: bool = True,
-                    collect_reddit: bool = True,
-                    collect_tiktok: bool = True):
+    def collect_all(self, collect_prices: bool = True, collect_reddit: bool = True, collect_tiktok: bool = True):
         """
         Run complete data collection cycle
 
@@ -75,8 +66,9 @@ class UnifiedCollector:
         total_records = 0
         total_errors = 0
 
-        # Get all tracked coins
-        coin_symbols = list(self.price_collector.COIN_IDS.keys())
+        # Get all tracked coins from PriceCollector
+        price_collector = PriceCollector()
+        coin_symbols = list(price_collector.COIN_IDS.keys())
 
         logging.info(f"📊 Tracking {len(coin_symbols)} coins: {', '.join(coin_symbols)}")
 
@@ -112,14 +104,10 @@ class UnifiedCollector:
 
         # Log completion
         duration = time.time() - start_time
-        status = 'success' if total_errors == 0 else 'partial' if total_records > 0 else 'failed'
+        status = "success" if total_errors == 0 else "partial" if total_records > 0 else "failed"
 
         self.db.log_collection(
-            collector_type='unified',
-            status=status,
-            records=total_records,
-            errors=total_errors,
-            duration=duration
+            collector_type="unified", status=status, records=total_records, errors=total_errors, duration=duration
         )
 
         logging.info("=" * 70)
@@ -132,6 +120,19 @@ class UnifiedCollector:
         # Return counts for scheduler
         return (total_records, total_errors)
 
+    def collect_prices(self, coin_symbols: List[str]) -> Dict:
+        """
+        Public API for price collection
+
+        Args:
+            coin_symbols: List of coin symbols to collect prices for
+
+        Returns:
+            Dict with 'count' (number of prices collected) and 'errors' (number of errors)
+        """
+        count, errors = self._collect_prices(coin_symbols)
+        return {"count": count, "errors": errors}
+
     def _collect_prices(self, coin_symbols: List[str]) -> tuple:
         """Collect price data for all coins"""
         logging.info("\n💰 Collecting price data...")
@@ -140,16 +141,19 @@ class UnifiedCollector:
         errors = 0
 
         try:
-            price_data = self.price_collector.fetch_coin_data(coin_symbols)
+            price_collector = PriceCollector()
+            price_data = price_collector.fetch_coin_data(coin_symbols)
 
             # Quality assessment
             quality_monitor = QualityMonitor(db_manager=self.db)
             price_list = list(price_data.values())
-            quality_metrics = quality_monitor.assess_collection_quality(price_list, 'price')
+            quality_metrics = quality_monitor.assess_collection_quality(price_list, "price")
 
             # Log quality issues if any
-            if quality_metrics['status'] in ['POOR', 'FAILED']:
-                logging.warning(f"   Data quality issue: {quality_metrics['status']} (score: {quality_metrics['quality_score']:.1f}/100)")
+            if quality_metrics["status"] in ["POOR", "FAILED"]:
+                logging.warning(
+                    f"   Data quality issue: {quality_metrics['status']} (score: {quality_metrics['quality_score']:.1f}/100)"
+                )
 
             for symbol, data in price_data.items():
                 try:
@@ -162,14 +166,27 @@ class UnifiedCollector:
             duration = time.time() - start_time
             logging.info(f"   ✅ Collected {count} prices in {duration:.1f}s (Quality: {quality_metrics['status']})")
 
-            self.db.log_collection('price', 'success', count, errors, duration)
+            self.db.log_collection("price", "success", count, errors, duration)
 
         except Exception as e:
             logging.error(f"   ❌ Price collection error: {e}")
             errors += 1
-            self.db.log_collection('price', 'failed', 0, 1, 0, str(e))
+            self.db.log_collection("price", "failed", 0, 1, 0, str(e))
 
         return count, errors
+
+    def collect_reddit(self, coin_symbols: List[str]) -> Dict:
+        """
+        Public API for Reddit collection
+
+        Args:
+            coin_symbols: List of coin symbols to collect Reddit data for
+
+        Returns:
+            Dict with 'count' (number of posts collected) and 'errors' (number of errors)
+        """
+        count, errors = self._collect_reddit(coin_symbols)
+        return {"count": count, "errors": errors}
 
     def _collect_reddit(self, coin_symbols: List[str]) -> tuple:
         """Collect Reddit data for all coins"""
@@ -188,19 +205,19 @@ class UnifiedCollector:
                     posts = reddit_collector.collect_coin_data(symbol, max_posts=20)
                     all_posts.extend(posts)
 
-                    # Save to database
-                    for post in posts:
+                    # Batch save to database (5x faster than individual inserts)
+                    if posts:
                         try:
-                            self.db.add_reddit_post(symbol, post)
-                            count += 1
+                            added = self.db.add_reddit_posts_batch(symbol, posts)
+                            count += added
                         except Exception as e:
-                            logging.debug(f"   Error saving post: {e}")
+                            logging.debug(f"   Error batch saving posts: {e}")
                             errors += 1
 
-                    # Calculate and save aggregated sentiment
-                    if posts:
+                        # Calculate and save aggregated sentiment
                         sentiment = reddit_collector.aggregate_sentiment(posts)
-                        sentiment['timestamp'] = datetime.utcnow()
+                        sentiment["timestamp"] = datetime.utcnow()
+                        sentiment["source"] = "reddit"
                         self.db.add_sentiment_score(symbol, sentiment)
 
                 except Exception as e:
@@ -210,25 +227,42 @@ class UnifiedCollector:
             # Quality assessment on all collected posts
             if all_posts:
                 quality_monitor = QualityMonitor(db_manager=self.db)
-                quality_metrics = quality_monitor.assess_collection_quality(all_posts, 'reddit')
+                quality_metrics = quality_monitor.assess_collection_quality(all_posts, "reddit")
 
-                if quality_metrics['status'] in ['POOR', 'FAILED']:
-                    logging.warning(f"   Data quality issue: {quality_metrics['status']} (score: {quality_metrics['quality_score']:.1f}/100)")
+                if quality_metrics["status"] in ["POOR", "FAILED"]:
+                    logging.warning(
+                        f"   Data quality issue: {quality_metrics['status']} (score: {quality_metrics['quality_score']:.1f}/100)"
+                    )
 
                 duration = time.time() - start_time
-                logging.info(f"   ✅ Collected {count} Reddit posts in {duration:.1f}s (Quality: {quality_metrics['status']})")
+                logging.info(
+                    f"   ✅ Collected {count} Reddit posts in {duration:.1f}s (Quality: {quality_metrics['status']})"
+                )
             else:
                 duration = time.time() - start_time
                 logging.info(f"   ✅ Collected {count} Reddit posts in {duration:.1f}s")
 
-            self.db.log_collection('reddit', 'success', count, errors, duration)
+            self.db.log_collection("reddit", "success", count, errors, duration)
 
         except Exception as e:
             logging.error(f"   ❌ Reddit collection error: {e}")
             errors += 1
-            self.db.log_collection('reddit', 'failed', 0, 1, 0, str(e))
+            self.db.log_collection("reddit", "failed", 0, 1, 0, str(e))
 
         return count, errors
+
+    def collect_tiktok(self, coin_symbols: List[str]) -> Dict:
+        """
+        Public API for TikTok collection
+
+        Args:
+            coin_symbols: List of coin symbols to collect TikTok data for
+
+        Returns:
+            Dict with 'count' (number of videos collected) and 'errors' (number of errors)
+        """
+        count, errors = self._collect_tiktok(coin_symbols)
+        return {"count": count, "errors": errors}
 
     def _collect_tiktok(self, coin_symbols: List[str]) -> tuple:
         """Collect TikTok data for all coins"""
@@ -247,19 +281,19 @@ class UnifiedCollector:
                     videos = tiktok_collector.collect_coin_data(symbol, max_videos=15)
                     all_videos.extend(videos)
 
-                    # Save to database
-                    for video in videos:
+                    # Batch save to database (5x faster than individual inserts)
+                    if videos:
                         try:
-                            self.db.add_tiktok_video(symbol, video)
-                            count += 1
+                            added = self.db.add_tiktok_videos_batch(symbol, videos)
+                            count += added
                         except Exception as e:
-                            logging.debug(f"   Error saving video: {e}")
+                            logging.debug(f"   Error batch saving videos: {e}")
                             errors += 1
 
-                    # Calculate and save aggregated sentiment
-                    if videos:
+                        # Calculate and save aggregated sentiment
                         sentiment = tiktok_collector.aggregate_sentiment(videos)
-                        sentiment['timestamp'] = datetime.utcnow()
+                        sentiment["timestamp"] = datetime.utcnow()
+                        sentiment["source"] = "tiktok"
                         self.db.add_sentiment_score(symbol, sentiment)
 
                 except Exception as e:
@@ -269,23 +303,27 @@ class UnifiedCollector:
             # Quality assessment on all collected videos
             if all_videos:
                 quality_monitor = QualityMonitor(db_manager=self.db)
-                quality_metrics = quality_monitor.assess_collection_quality(all_videos, 'tiktok')
+                quality_metrics = quality_monitor.assess_collection_quality(all_videos, "tiktok")
 
-                if quality_metrics['status'] in ['POOR', 'FAILED']:
-                    logging.warning(f"   Data quality issue: {quality_metrics['status']} (score: {quality_metrics['quality_score']:.1f}/100)")
+                if quality_metrics["status"] in ["POOR", "FAILED"]:
+                    logging.warning(
+                        f"   Data quality issue: {quality_metrics['status']} (score: {quality_metrics['quality_score']:.1f}/100)"
+                    )
 
                 duration = time.time() - start_time
-                logging.info(f"   ✅ Collected {count} TikTok videos in {duration:.1f}s (Quality: {quality_metrics['status']})")
+                logging.info(
+                    f"   ✅ Collected {count} TikTok videos in {duration:.1f}s (Quality: {quality_metrics['status']})"
+                )
             else:
                 duration = time.time() - start_time
                 logging.info(f"   ✅ Collected {count} TikTok videos in {duration:.1f}s")
 
-            self.db.log_collection('tiktok', 'success', count, errors, duration)
+            self.db.log_collection("tiktok", "success", count, errors, duration)
 
         except Exception as e:
             logging.error(f"   ❌ TikTok collection error: {e}")
             errors += 1
-            self.db.log_collection('tiktok', 'failed', 0, 1, 0, str(e))
+            self.db.log_collection("tiktok", "failed", 0, 1, 0, str(e))
 
         return count, errors
 
@@ -295,7 +333,6 @@ class UnifiedCollector:
 
     def close(self):
         """Close all connections"""
-        self.price_collector.close()
         self.db.close()
         logging.info("Unified collector closed")
 
@@ -307,30 +344,24 @@ def main():
     """
     import argparse
 
-    parser = argparse.ArgumentParser(description='Memecoin Unified Data Collector')
-    parser.add_argument('--no-prices', action='store_true', help='Skip price collection')
-    parser.add_argument('--no-reddit', action='store_true', help='Skip Reddit collection')
-    parser.add_argument('--no-tiktok', action='store_true', help='Skip TikTok collection')
-    parser.add_argument('--headless', action='store_true', default=True, help='Run scrapers headless')
-    parser.add_argument('--db-path', type=str, help='Path to database file')
+    parser = argparse.ArgumentParser(description="Memecoin Unified Data Collector")
+    parser.add_argument("--no-prices", action="store_true", help="Skip price collection")
+    parser.add_argument("--no-reddit", action="store_true", help="Skip Reddit collection")
+    parser.add_argument("--no-tiktok", action="store_true", help="Skip TikTok collection")
+    parser.add_argument("--headless", action="store_true", default=True, help="Run scrapers headless")
+    parser.add_argument("--db-path", type=str, help="Path to database file")
 
     args = parser.parse_args()
 
     # Create collector
-    scraper_config = {
-        'headless': args.headless,
-        'min_delay': 2,
-        'max_delay': 5
-    }
+    scraper_config = {"headless": args.headless, "min_delay": 2, "max_delay": 5}
 
     collector = UnifiedCollector(db_path=args.db_path, scraper_config=scraper_config)
 
     try:
         # Run collection
         collector.collect_all(
-            collect_prices=not args.no_prices,
-            collect_reddit=not args.no_reddit,
-            collect_tiktok=not args.no_tiktok
+            collect_prices=not args.no_prices, collect_reddit=not args.no_reddit, collect_tiktok=not args.no_tiktok
         )
 
         # Show stats

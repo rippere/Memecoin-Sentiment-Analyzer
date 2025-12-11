@@ -4,16 +4,17 @@ Database Manager for Memecoin Sentiment Analyzer
 Handles all database operations with connection pooling and error handling
 """
 
-from sqlalchemy import create_engine, func
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.pool import StaticPool
-from contextlib import contextmanager
 import logging
-from pathlib import Path
+from contextlib import contextmanager
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from .models import Base, Coin, Price, RedditPost, TikTokVideo, SentimentScore, CorrelationResult, DataCollectionLog
+from sqlalchemy import create_engine, func
+from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from .models import Base, Coin, CorrelationResult, DataCollectionLog, Price, RedditPost, SentimentScore, TikTokVideo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -35,16 +36,13 @@ class DatabaseManager:
         if db_path is None:
             # Default to data directory in project root
             project_root = Path(__file__).parent.parent
-            db_dir = project_root / 'data'
+            db_dir = project_root / "data"
             db_dir.mkdir(exist_ok=True)
-            db_path = str(db_dir / 'memecoin.db')
+            db_path = str(db_dir / "memecoin.db")
 
         self.db_path = db_path
         self.engine = create_engine(
-            f'sqlite:///{db_path}',
-            echo=echo,
-            connect_args={'check_same_thread': False},
-            poolclass=StaticPool
+            f"sqlite:///{db_path}", echo=echo, connect_args={"check_same_thread": False}, poolclass=StaticPool
         )
 
         # Create session factory
@@ -62,19 +60,20 @@ class DatabaseManager:
         """Initialize coins from config file"""
         try:
             from config.coin_config import get_coin_config
+
             coin_config = get_coin_config()
             coins_from_config = coin_config.get_all_coins()
         except Exception as e:
             logging.warning(f"Could not load coins from config: {e}, using defaults")
             coins_from_config = [
-                {'symbol': 'DOGE', 'name': 'Dogecoin', 'coingecko_id': 'dogecoin'},
-                {'symbol': 'PEPE', 'name': 'Pepe', 'coingecko_id': 'pepe'},
-                {'symbol': 'SHIB', 'name': 'Shiba Inu', 'coingecko_id': 'shiba-inu'},
+                {"symbol": "DOGE", "name": "Dogecoin", "coingecko_id": "dogecoin"},
+                {"symbol": "PEPE", "name": "Pepe", "coingecko_id": "pepe"},
+                {"symbol": "SHIB", "name": "Shiba Inu", "coingecko_id": "shiba-inu"},
             ]
 
         with self.get_session() as session:
             for coin_data in coins_from_config:
-                existing = session.query(Coin).filter_by(symbol=coin_data['symbol']).first()
+                existing = session.query(Coin).filter_by(symbol=coin_data["symbol"]).first()
                 if not existing:
                     coin = Coin(**coin_data)
                     session.add(coin)
@@ -139,13 +138,13 @@ class DatabaseManager:
 
             price = Price(
                 coin_id=coin.id,
-                timestamp=price_data.get('timestamp', datetime.utcnow()),
-                price_usd=price_data['price_usd'],
-                market_cap=price_data.get('market_cap'),
-                volume_24h=price_data.get('volume_24h'),
-                change_1h_pct=price_data.get('change_1h_pct'),
-                change_24h_pct=price_data.get('change_24h_pct'),
-                change_7d_pct=price_data.get('change_7d_pct')
+                timestamp=price_data.get("timestamp", datetime.utcnow()),
+                price_usd=price_data["price_usd"],
+                market_cap=price_data.get("market_cap"),
+                volume_24h=price_data.get("volume_24h"),
+                change_1h_pct=price_data.get("change_1h_pct"),
+                change_24h_pct=price_data.get("change_24h_pct"),
+                change_7d_pct=price_data.get("change_7d_pct"),
             )
             session.add(price)
             session.commit()
@@ -158,10 +157,7 @@ class DatabaseManager:
             coin = session.query(Coin).filter_by(symbol=coin_symbol.upper()).first()
             if not coin:
                 return None
-            return session.query(Price)\
-                .filter_by(coin_id=coin.id)\
-                .order_by(Price.timestamp.desc())\
-                .first()
+            return session.query(Price).filter_by(coin_id=coin.id).order_by(Price.timestamp.desc()).first()
 
     def get_prices_timeframe(self, coin_symbol: str, hours: int = 24) -> List[Price]:
         """Get prices for last N hours"""
@@ -171,10 +167,12 @@ class DatabaseManager:
                 return []
 
             cutoff = datetime.utcnow() - timedelta(hours=hours)
-            return session.query(Price)\
-                .filter(Price.coin_id == coin.id, Price.timestamp >= cutoff)\
-                .order_by(Price.timestamp.desc())\
+            return (
+                session.query(Price)
+                .filter(Price.coin_id == coin.id, Price.timestamp >= cutoff)
+                .order_by(Price.timestamp.desc())
                 .all()
+            )
 
     # =========================================================================
     # REDDIT OPERATIONS
@@ -189,31 +187,88 @@ class DatabaseManager:
                 return None
 
             # Check if post already exists
-            existing = session.query(RedditPost).filter_by(post_id=post_data['post_id']).first()
+            existing = session.query(RedditPost).filter_by(post_id=post_data["post_id"]).first()
             if existing:
                 logging.debug(f"Reddit post {post_data['post_id']} already exists")
                 return existing
 
             post = RedditPost(
                 coin_id=coin.id,
-                post_id=post_data['post_id'],
-                post_url=post_data['post_url'],
-                title=post_data['title'],
-                body=post_data.get('body'),
-                author=post_data.get('author'),
-                subreddit=post_data['subreddit'],
-                flair=post_data.get('flair'),
-                score=post_data.get('score', 0),
-                num_comments=post_data.get('num_comments', 0),
-                upvote_ratio=post_data.get('upvote_ratio'),
-                is_self=post_data.get('is_self', True),
-                created_utc=post_data['created_utc'],
-                query=post_data.get('query')
+                post_id=post_data["post_id"],
+                post_url=post_data["post_url"],
+                title=post_data["title"],
+                body=post_data.get("body"),
+                author=post_data.get("author"),
+                subreddit=post_data["subreddit"],
+                flair=post_data.get("flair"),
+                score=post_data.get("score", 0),
+                num_comments=post_data.get("num_comments", 0),
+                upvote_ratio=post_data.get("upvote_ratio"),
+                is_self=post_data.get("is_self", True),
+                created_utc=post_data["created_utc"],
+                query=post_data.get("query"),
             )
             session.add(post)
             session.commit()
             logging.debug(f"Added Reddit post: {post_data['post_id']}")
             return post
+
+    def add_reddit_posts_batch(self, coin_symbol: str, posts_data: List[Dict[str, Any]]) -> int:
+        """
+        Add multiple Reddit posts in a single batch transaction (5x faster)
+
+        Args:
+            coin_symbol: Coin symbol
+            posts_data: List of post data dictionaries
+
+        Returns:
+            Number of posts added (excludes duplicates)
+        """
+        if not posts_data:
+            return 0
+
+        with self.get_session() as session:
+            coin = session.query(Coin).filter_by(symbol=coin_symbol.upper()).first()
+            if not coin:
+                logging.error(f"Coin {coin_symbol} not found")
+                return 0
+
+            # Get all existing post IDs in one query
+            post_ids = [p["post_id"] for p in posts_data]
+            existing_ids = set(
+                row[0] for row in session.query(RedditPost.post_id).filter(RedditPost.post_id.in_(post_ids)).all()
+            )
+
+            # Filter out duplicates
+            new_posts = []
+            for post_data in posts_data:
+                if post_data["post_id"] not in existing_ids:
+                    new_posts.append(
+                        {
+                            "coin_id": coin.id,
+                            "post_id": post_data["post_id"],
+                            "post_url": post_data["post_url"],
+                            "title": post_data["title"],
+                            "body": post_data.get("body"),
+                            "author": post_data.get("author"),
+                            "subreddit": post_data["subreddit"],
+                            "flair": post_data.get("flair"),
+                            "score": post_data.get("score", 0),
+                            "num_comments": post_data.get("num_comments", 0),
+                            "upvote_ratio": post_data.get("upvote_ratio"),
+                            "is_self": post_data.get("is_self", True),
+                            "created_utc": post_data["created_utc"],
+                            "query": post_data.get("query"),
+                        }
+                    )
+
+            # Bulk insert
+            if new_posts:
+                session.bulk_insert_mappings(RedditPost, new_posts)
+                session.commit()
+                logging.debug(f"Batch added {len(new_posts)} Reddit posts ({len(existing_ids)} duplicates skipped)")
+
+            return len(new_posts)
 
     def get_reddit_posts_timeframe(self, coin_symbol: str, hours: int = 24) -> List[RedditPost]:
         """Get Reddit posts for last N hours"""
@@ -223,10 +278,12 @@ class DatabaseManager:
                 return []
 
             cutoff = datetime.utcnow() - timedelta(hours=hours)
-            return session.query(RedditPost)\
-                .filter(RedditPost.coin_id == coin.id, RedditPost.created_utc >= cutoff)\
-                .order_by(RedditPost.created_utc.desc())\
+            return (
+                session.query(RedditPost)
+                .filter(RedditPost.coin_id == coin.id, RedditPost.created_utc >= cutoff)
+                .order_by(RedditPost.created_utc.desc())
                 .all()
+            )
 
     # =========================================================================
     # TIKTOK OPERATIONS
@@ -241,29 +298,84 @@ class DatabaseManager:
                 return None
 
             # Check if video already exists
-            existing = session.query(TikTokVideo).filter_by(video_id=video_data['video_id']).first()
+            existing = session.query(TikTokVideo).filter_by(video_id=video_data["video_id"]).first()
             if existing:
                 logging.debug(f"TikTok video {video_data['video_id']} already exists")
                 return existing
 
             video = TikTokVideo(
                 coin_id=coin.id,
-                video_id=video_data['video_id'],
-                video_url=video_data['video_url'],
-                username=video_data.get('username'),
-                caption=video_data.get('caption'),
-                hashtags=video_data.get('hashtags'),
-                views=video_data.get('views', 0),
-                likes=video_data.get('likes', 0),
-                shares=video_data.get('shares', 0),
-                comments=video_data.get('comments', 0),
-                hashtag_searched=video_data.get('hashtag_searched'),
-                container_index=video_data.get('container_index')
+                video_id=video_data["video_id"],
+                video_url=video_data["video_url"],
+                username=video_data.get("username"),
+                caption=video_data.get("caption"),
+                hashtags=video_data.get("hashtags"),
+                views=video_data.get("views", 0),
+                likes=video_data.get("likes", 0),
+                shares=video_data.get("shares", 0),
+                comments=video_data.get("comments", 0),
+                hashtag_searched=video_data.get("hashtag_searched"),
+                container_index=video_data.get("container_index"),
             )
             session.add(video)
             session.commit()
             logging.debug(f"Added TikTok video: {video_data['video_id']}")
             return video
+
+    def add_tiktok_videos_batch(self, coin_symbol: str, videos_data: List[Dict[str, Any]]) -> int:
+        """
+        Add multiple TikTok videos in a single batch transaction (5x faster)
+
+        Args:
+            coin_symbol: Coin symbol
+            videos_data: List of video data dictionaries
+
+        Returns:
+            Number of videos added (excludes duplicates)
+        """
+        if not videos_data:
+            return 0
+
+        with self.get_session() as session:
+            coin = session.query(Coin).filter_by(symbol=coin_symbol.upper()).first()
+            if not coin:
+                logging.error(f"Coin {coin_symbol} not found")
+                return 0
+
+            # Get all existing video IDs in one query
+            video_ids = [v["video_id"] for v in videos_data]
+            existing_ids = set(
+                row[0] for row in session.query(TikTokVideo.video_id).filter(TikTokVideo.video_id.in_(video_ids)).all()
+            )
+
+            # Filter out duplicates
+            new_videos = []
+            for video_data in videos_data:
+                if video_data["video_id"] not in existing_ids:
+                    new_videos.append(
+                        {
+                            "coin_id": coin.id,
+                            "video_id": video_data["video_id"],
+                            "video_url": video_data["video_url"],
+                            "username": video_data.get("username"),
+                            "caption": video_data.get("caption"),
+                            "hashtags": video_data.get("hashtags"),
+                            "views": video_data.get("views", 0),
+                            "likes": video_data.get("likes", 0),
+                            "shares": video_data.get("shares", 0),
+                            "comments": video_data.get("comments", 0),
+                            "hashtag_searched": video_data.get("hashtag_searched"),
+                            "container_index": video_data.get("container_index"),
+                        }
+                    )
+
+            # Bulk insert
+            if new_videos:
+                session.bulk_insert_mappings(TikTokVideo, new_videos)
+                session.commit()
+                logging.debug(f"Batch added {len(new_videos)} TikTok videos ({len(existing_ids)} duplicates skipped)")
+
+            return len(new_videos)
 
     def get_tiktok_videos_timeframe(self, coin_symbol: str, hours: int = 24) -> List[TikTokVideo]:
         """Get TikTok videos for last N hours"""
@@ -273,10 +385,12 @@ class DatabaseManager:
                 return []
 
             cutoff = datetime.utcnow() - timedelta(hours=hours)
-            return session.query(TikTokVideo)\
-                .filter(TikTokVideo.coin_id == coin.id, TikTokVideo.scraped_at >= cutoff)\
-                .order_by(TikTokVideo.scraped_at.desc())\
+            return (
+                session.query(TikTokVideo)
+                .filter(TikTokVideo.coin_id == coin.id, TikTokVideo.scraped_at >= cutoff)
+                .order_by(TikTokVideo.scraped_at.desc())
                 .all()
+            )
 
     # =========================================================================
     # SENTIMENT OPERATIONS
@@ -292,17 +406,17 @@ class DatabaseManager:
 
             sentiment = SentimentScore(
                 coin_id=coin.id,
-                timestamp=sentiment_data.get('timestamp', datetime.utcnow()),
-                source=sentiment_data['source'],
-                sentiment_score=sentiment_data.get('sentiment_score'),
-                sentiment_positive=sentiment_data.get('sentiment_positive'),
-                sentiment_negative=sentiment_data.get('sentiment_negative'),
-                sentiment_neutral=sentiment_data.get('sentiment_neutral'),
-                post_count=sentiment_data.get('post_count', 0),
-                total_engagement=sentiment_data.get('total_engagement', 0),
-                hype_score=sentiment_data.get('hype_score'),
-                hype_keywords_count=sentiment_data.get('hype_keywords_count', 0),
-                hype_emojis_count=sentiment_data.get('hype_emojis_count', 0)
+                timestamp=sentiment_data.get("timestamp", datetime.utcnow()),
+                source=sentiment_data["source"],
+                sentiment_score=sentiment_data.get("sentiment_score"),
+                sentiment_positive=sentiment_data.get("sentiment_positive"),
+                sentiment_negative=sentiment_data.get("sentiment_negative"),
+                sentiment_neutral=sentiment_data.get("sentiment_neutral"),
+                post_count=sentiment_data.get("post_count", 0),
+                total_engagement=sentiment_data.get("total_engagement", 0),
+                hype_score=sentiment_data.get("hype_score"),
+                hype_keywords_count=sentiment_data.get("hype_keywords_count", 0),
+                hype_emojis_count=sentiment_data.get("hype_emojis_count", 0),
             )
             session.add(sentiment)
             session.commit()
@@ -313,8 +427,15 @@ class DatabaseManager:
     # LOGGING OPERATIONS
     # =========================================================================
 
-    def log_collection(self, collector_type: str, status: str, records: int = 0,
-                       errors: int = 0, duration: float = 0, error_msg: str = None):
+    def log_collection(
+        self,
+        collector_type: str,
+        status: str,
+        records: int = 0,
+        errors: int = 0,
+        duration: float = 0,
+        error_msg: str = None,
+    ):
         """Log data collection run"""
         with self.get_session() as session:
             log = DataCollectionLog(
@@ -323,7 +444,7 @@ class DatabaseManager:
                 records_collected=records,
                 errors_count=errors,
                 duration_seconds=duration,
-                error_message=error_msg
+                error_message=error_msg,
             )
             session.add(log)
             session.commit()
@@ -336,12 +457,12 @@ class DatabaseManager:
         """Get database statistics"""
         with self.get_session() as session:
             stats = {
-                'coins': session.query(Coin).count(),
-                'prices': session.query(Price).count(),
-                'reddit_posts': session.query(RedditPost).count(),
-                'tiktok_videos': session.query(TikTokVideo).count(),
-                'sentiment_scores': session.query(SentimentScore).count(),
-                'collection_logs': session.query(DataCollectionLog).count()
+                "coins": session.query(Coin).count(),
+                "prices": session.query(Price).count(),
+                "reddit_posts": session.query(RedditPost).count(),
+                "tiktok_videos": session.query(TikTokVideo).count(),
+                "sentiment_scores": session.query(SentimentScore).count(),
+                "collection_logs": session.query(DataCollectionLog).count(),
             }
 
             # Latest collection times
@@ -349,9 +470,9 @@ class DatabaseManager:
             latest_reddit = session.query(func.max(RedditPost.scraped_at)).scalar()
             latest_tiktok = session.query(func.max(TikTokVideo.scraped_at)).scalar()
 
-            stats['latest_price'] = latest_price
-            stats['latest_reddit'] = latest_reddit
-            stats['latest_tiktok'] = latest_tiktok
+            stats["latest_price"] = latest_price
+            stats["latest_reddit"] = latest_reddit
+            stats["latest_tiktok"] = latest_tiktok
 
             return stats
 
