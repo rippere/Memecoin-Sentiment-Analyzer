@@ -29,3 +29,12 @@ scipy>=1.11.0
 
 # Chrome WebDriver Manager (easier driver management)
 webdriver-manager>=4.0.1
+
+# Scheduling (for automated data collection)
+APScheduler>=3.10.0
+
+# Configuration
+pyyaml>=6.0
+
+# Database
+sqlalchemy>=2.0.0
