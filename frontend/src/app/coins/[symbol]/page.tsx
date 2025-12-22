@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { PriceChart } from '@/components/charts/PriceChart'
 import { SentimentGauge } from '@/components/SentimentGauge'
 import { AnalysisPanel } from '@/components/AnalysisPanel'
+import { PriceSentimentChart } from '@/components/PriceSentimentChart'
 import type { TimeRange, PricePoint, Coin } from '@/types'
 
 // Coin metadata for display
@@ -294,6 +295,15 @@ export default function CoinDetailPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Price vs Sentiment Correlation */}
+      <div className="card">
+        <h2 className="text-xl font-bold mb-2">💹 Price vs Sentiment Correlation</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Analyze the statistical relationship between social sentiment and price movements.
+        </p>
+        <PriceSentimentChart symbol={symbol} hours={168} />
       </div>
 
       {/* AI Analysis Panel */}

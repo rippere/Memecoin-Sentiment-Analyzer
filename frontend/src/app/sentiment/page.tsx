@@ -10,6 +10,8 @@
 import { useState, useEffect } from 'react'
 import { SentimentChart } from '@/components/SentimentChart'
 import { SentimentGauge } from '@/components/SentimentGauge'
+import { SentimentHeatmap } from '@/components/SentimentHeatmap'
+import { SentimentTimeline } from '@/components/SentimentTimeline'
 
 interface Coin {
   symbol: string
@@ -143,33 +145,39 @@ export default function SentimentPage() {
         <SentimentChart coins={coins} />
       </div>
 
-      {/* Sentiment Heatmap (if data available) */}
-      {heatmapData.length > 0 && (
-        <div className="card">
-          <h2 className="text-xl font-bold mb-4">Sentiment Heatmap</h2>
-          <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2">
-            {heatmapData.map((item) => {
-              const bgColor = item.sentiment > 0.1
-                ? 'bg-bullish'
-                : item.sentiment < -0.1
-                  ? 'bg-bearish'
-                  : 'bg-neutral'
-              const opacity = Math.min(Math.abs(item.sentiment) + 0.3, 1)
+      {/* Sentiment Heatmap */}
+      <div className="card">
+        <h2 className="text-xl font-bold mb-4">📊 Sentiment Heatmap</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Color-coded grid showing sentiment across all coins. Click any coin for detailed analysis.
+        </p>
+        <SentimentHeatmap />
+      </div>
 
-              return (
-                <div
-                  key={item.symbol}
-                  className={`${bgColor} rounded p-2 text-center cursor-pointer hover:scale-105 transition-transform`}
-                  style={{ opacity }}
-                  title={`${item.symbol}: ${item.sentiment.toFixed(3)}`}
-                >
-                  <div className="text-xs font-bold text-white">{item.symbol}</div>
-                </div>
-              )
-            })}
-          </div>
+      {/* Sentiment Timeline */}
+      <div className="card">
+        <h2 className="text-xl font-bold mb-4">📈 Sentiment Over Time</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Aggregated sentiment and hype scores across all tracked coins (last 7 days).
+        </p>
+        <SentimentTimeline hours={168} />
+      </div>
+
+      {/* Info Box */}
+      <div className="card bg-bg-secondary/50">
+        <h3 className="font-bold mb-2">ℹ️ About Sentiment Analysis</h3>
+        <div className="text-sm text-text-secondary space-y-2">
+          <p>
+            Sentiment scores range from -1 (very bearish) to +1 (very bullish), calculated using VADER sentiment analysis on social media posts.
+          </p>
+          <p>
+            <span className="font-semibold text-accent">Hype Score:</span> Measures excitement level based on keywords, emojis, and engagement (0-100 scale).
+          </p>
+          <p>
+            <span className="font-semibold text-accent">Correlation:</span> Statistical relationship between sentiment and price. Strong correlation (>0.7) suggests sentiment may predict price movements.
+          </p>
         </div>
-      )}
+      </div>
     </div>
   )
 }
