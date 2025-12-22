@@ -58,3 +58,22 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.cache/
+frontend/*.tsbuildinfo
+
+# Test files
+test_*.py
+test_*.json
+test_*.html
+debug_*.py
+check_*.py
+tiktok_page_source.html
+
+# Events data (temporary)
+events/events.json
