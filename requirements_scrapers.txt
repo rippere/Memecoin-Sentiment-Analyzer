@@ -38,3 +38,6 @@ pyyaml>=6.0
 
 # Database
 sqlalchemy>=2.0.0
+
+# Reddit API
+praw>=7.7.0
