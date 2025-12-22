@@ -382,6 +382,133 @@ With **statistical confidence (p < 0.05)** backed by historical data.
 | Deployment | Local | Cloud (Railway/Fly.io) | Free tier sufficient initially |
 | Monitoring | None | Sentry + Grafana | Essential for production |
 | Testing | None | pytest + coverage | Non-negotiable |
+| **Schedulers** | **Manual** | **GitHub Actions / Cloud Cron** | **No always-on needed** |
+
+### Deployment Strategy: Cloud-Scheduled (No Always-On Required)
+
+**Key Principle:** Use scheduled cloud runners instead of always-on servers until Phase 4+.
+
+#### Phase 0-1: GitHub Actions (Free)
+
+**Perfect for MVP validation:**
+```yaml
+# .github/workflows/collect-data.yml
+name: Collect Data
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run collector
+        run: python collectors/reddit_collector.py
+      - name: Commit data
+        run: |
+          git config user.name "bot"
+          git add data/
+          git commit -m "Data: $(date)" || exit 0
+          git push
+```
+
+**Benefits:**
+- ✅ 2,000 minutes/month free (enough for MVP)
+- ✅ No infrastructure management
+- ✅ Already using this for price collection
+- ✅ Data committed to git (simple backup)
+- ❌ Limited to ~200 runs/month if each takes 10 min
+
+**Good for:** Phase 0-1 validation with infrequent collection (every 6-12 hours)
+
+#### Phase 2: Cloud Functions + Managed Cron
+
+**When GitHub Actions limits are reached:**
+
+**Option A: Railway Cron Jobs (Free tier: $5 credit/month)**
+```yaml
+# railway.yml
+services:
+  reddit-collector:
+    schedule: "0 */2 * * *"  # Every 2 hours
+    command: python collectors/reddit_collector.py
+
+  sentiment-processor:
+    schedule: "30 */4 * * *"  # Every 4 hours, offset
+    command: python processors/sentiment_analyzer.py
+```
+
+**Option B: Google Cloud Functions + Cloud Scheduler**
+- Free tier: 2M invocations/month
+- Pay per execution (fractions of a cent)
+- Scales to zero when not running
+
+**Option C: AWS Lambda + EventBridge**
+- Free tier: 1M requests/month
+- Similar to GCP, pay per use
+- Generous free tier
+
+**Cost Comparison:**
+| Service | Free Tier | Cost After Free |
+|---------|-----------|-----------------|
+| GitHub Actions | 2,000 min/mo | $0.008/min |
+| Railway | $5 credit/mo | $0.000463/GB-s |
+| GCP Functions | 2M calls/mo | $0.40/M calls |
+| AWS Lambda | 1M calls/mo | $0.20/M calls |
+| Render Cron | 750 hours/mo | $7/mo (always-on) |
+
+**Recommendation Phase 2:**
+- Start: GitHub Actions (already working)
+- If limits hit: Railway Cron (simple migration)
+- If scaling needed: GCP Functions (most generous free tier)
+
+#### Phase 3-4: Hybrid Approach
+
+**Data Collection:** Cloud scheduled (as above)
+**Dashboard/API:** Managed hosting
+  - Frontend: Vercel (Next.js) - Free tier
+  - Backend: Railway/Fly.io - Free tier or $5/mo
+  - Database: Supabase/Neon PostgreSQL - Free tier
+
+**Architecture:**
+```
+GitHub Actions (every 2 hours)
+    ↓
+Collect & Process Data
+    ↓
+PostgreSQL (Supabase free tier)
+    ↓
+FastAPI (Railway, scales to zero)
+    ↓
+Next.js (Vercel, edge deployment)
+```
+
+**No always-on servers needed until real-time features (Phase 5+)**
+
+#### Phase 5+: Real-Time Requirements
+
+**Only when adding:**
+- Live WebSocket updates
+- Sub-minute data collection
+- Real-time alerts
+
+**Then consider:**
+- Single VPS (Hetzner: $5/mo, Linode: $5/mo)
+- Or scale managed services (Railway Pro: $20/mo)
+
+#### Deployment Timeline
+
+| Phase | Collection Frequency | Solution | Cost |
+|-------|---------------------|----------|------|
+| 0-1 | Every 6-12 hours | GitHub Actions | $0 |
+| 2 | Every 2-4 hours | GitHub Actions or Railway Cron | $0-5/mo |
+| 3 | Every 1-2 hours | Railway Cron + Supabase | $0-10/mo |
+| 4 | Every 30-60 min | GCP Functions or Railway | $5-20/mo |
+| 5+ | Real-time (< 5 min) | VPS or managed platform | $20-50/mo |
+
+**No need for always-on infrastructure until Phase 5.**
 
 ---
 
@@ -399,15 +526,19 @@ With **statistical confidence (p < 0.05)** backed by historical data.
 ### Financial Costs
 | Service | Free Tier | Paid Need | Cost |
 |---------|-----------|-----------|------|
+| **Data Collection Scheduling** | **GitHub Actions** | **Phase 2-3** | **$0-10/mo** |
 | CoinGecko API | 30 calls/min | Maybe Phase 2 | $0-129/mo |
 | Twitter API | Limited | Likely Phase 1 | $100-5000/mo |
 | Reddit API | 60 req/min | Sufficient | $0 |
-| Hosting | Yes (Vercel/Railway) | Phase 4 | $0-20/mo |
-| Database | SQLite local | PostgreSQL cloud Phase 2 | $0-10/mo |
-| Monitoring | Open source | Optional | $0-20/mo |
+| Hosting (Frontend) | Vercel free | Phase 4+ | $0-20/mo |
+| Hosting (Backend) | Railway free | Phase 4+ | $0-10/mo |
+| Database | SQLite local | PostgreSQL (Supabase) Phase 2 | $0-10/mo |
+| Monitoring | Open source | Optional Phase 3+ | $0-20/mo |
 
-**Total Phase 0-1:** $0
-**Total Phase 2-4:** $100-300/month (if Twitter API needed)
+**Total Phase 0-1:** $0 (GitHub Actions free tier sufficient)
+**Total Phase 2-3:** $0-20/month (still on free tiers, skip Twitter)
+**Total Phase 4:** $20-50/month (managed hosting + DB)
+**Total with Twitter API:** +$100-5000/month (ONLY if needed)
 
 ### Alternative: Skip Twitter
 - Focus on Reddit + TikTok (free)
