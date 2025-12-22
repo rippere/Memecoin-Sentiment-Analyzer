@@ -31,6 +31,13 @@ class Coin(Base):
     is_failed = Column(Boolean, default=False)  # Failed/dead coins (SQUID, etc.)
     notes = Column(Text)  # Optional notes (e.g., "Rug pull 2021")
 
+    # Trending tracking
+    is_trending = Column(Boolean, default=False)  # Currently in trending rotation
+    trending_since = Column(DateTime)  # When it became trending
+    trending_rank = Column(Integer)  # Current rank in trending (1-100)
+    last_trending_check = Column(DateTime)  # Last time we checked trending status
+    status = Column(String(20), default='active')  # 'active', 'archived', 'control'
+
     # Relationships
     prices = relationship("Price", back_populates="coin")
     reddit_posts = relationship("RedditPost", back_populates="coin")
@@ -234,3 +241,30 @@ class DataCollectionLog(Base):
 
     def __repr__(self):
         return f"<CollectionLog({self.collector_type}, {self.status}, {self.records_collected} records)>"
+
+
+class TrendingHistory(Base):
+    """History of coins entering/exiting trending status"""
+    __tablename__ = 'trending_history'
+
+    id = Column(Integer, primary_key=True)
+    coin_id = Column(Integer, ForeignKey('coins.id'), nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Trending status
+    event_type = Column(String(20), nullable=False)  # 'entered', 'exited', 'rank_change'
+    trending_rank = Column(Integer)  # Rank when event occurred
+    previous_rank = Column(Integer)  # Previous rank (for rank_change events)
+
+    # Metrics at time of event
+    price_usd = Column(Float)
+    volume_24h = Column(Float)
+    market_cap = Column(Float)
+
+    # CoinGecko trending data
+    trending_score = Column(Float)  # CoinGecko's trending score if available
+
+    notes = Column(Text)
+
+    def __repr__(self):
+        return f"<TrendingHistory(coin_id={self.coin_id}, event={self.event_type}, rank={self.trending_rank})>"
