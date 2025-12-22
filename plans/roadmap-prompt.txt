@@ -1,0 +1,69 @@
+Analyze this crypto sentiment analyzer project and create a realistic product roadmap.
+
+CURRENT STATE:
+- Database: SQLAlchemy with coins, prices, social media posts, sentiment scores
+- Price collection: CoinGecko API working, trending coin rotation system
+- Social scrapers: TikTok/Reddit scrapers exist but not integrated
+- Sentiment: VADER imported, basic hype scoring, not production-ready
+- Dashboard: Basic Next.js UI, FastAPI backend
+- GitHub Actions: Automated price collection every 30-60 min
+- Technical debt: Mixed DB patterns (raw sqlite3 + SQLAlchemy), no tests, scattered scripts
+
+CORE CONCEPT:
+Correlate social media sentiment with memecoin price movements to provide trading insights.
+
+CREATE A ROADMAP THAT:
+
+1. DEFINES PRODUCT VISION
+   - What is "done"? What's the end product?
+   - Who is this for? (Traders? Researchers? Personal tool?)
+   - What specific problem does it solve?
+   - How do we measure success?
+
+2. IDENTIFIES REAL CHALLENGES
+   - Data quality and statistical validity
+   - API rate limits and costs
+   - Correlation vs causation
+   - Market manipulation detection
+   - Historical data limitations
+   - Scraper reliability
+
+3. DEFINES CLEAR MVP
+   - Minimum features to prove the concept works
+   - What's the validation criteria?
+   - How do we know if sentiment actually predicts price?
+   - What's the smallest testable hypothesis?
+
+4. OUTLINES REALISTIC PHASES
+   - Each phase has measurable outcome
+   - Go/no-go decision points
+   - What validates moving to next phase?
+   - Time estimates based on complexity
+
+5. ADDRESSES TECHNICAL ARCHITECTURE
+   - Current architecture issues
+   - Scalability concerns
+   - Data pipeline design
+   - Testing strategy
+   - Production deployment
+
+6. CONSIDERS VALUE PROPOSITION
+   - Why would someone use this?
+   - Monetization possibilities (if any)
+   - Open source vs proprietary
+   - Competitive analysis
+
+7. RISK MANAGEMENT
+   - What could kill the project?
+   - How to validate assumptions early?
+   - Pivot points if correlations don't exist
+
+BE CRITICAL AND REALISTIC:
+- Challenge the core assumption (does sentiment predict price?)
+- Identify potential dead-ends
+- Suggest validation experiments
+- What would it take to make this actually useful, not just a toy project?
+- Should this project exist at all? Why or why not?
+
+OUTPUT FORMAT:
+Structured roadmap with phases, decision gates, validation criteria, and realistic assessments.
