@@ -8,10 +8,12 @@
 'use client'  // Required for components that use React hooks
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { StatsCard } from '@/components/StatsCard'
 import { CoinTable } from '@/components/CoinTable'
 import { SentimentChart } from '@/components/SentimentChart'
 import { SentimentGauge } from '@/components/SentimentGauge'
+import { RecentPosts } from '@/components/RecentPosts'
 
 // Define what our API data looks like
 interface Stats {
@@ -38,6 +40,7 @@ export default function Dashboard() {
   // State variables - these hold our data
   const [stats, setStats] = useState<Stats | null>(null)
   const [coins, setCoins] = useState<Coin[]>([])
+  const [trendingCount, setTrendingCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,10 +53,11 @@ export default function Dashboard() {
       try {
         setLoading(true)
 
-        // Fetch stats and coins in parallel
-        const [statsRes, coinsRes] = await Promise.all([
+        // Fetch stats, coins, and trending in parallel
+        const [statsRes, coinsRes, trendingRes] = await Promise.all([
           fetch(`${API_URL}/api/stats`),
-          fetch(`${API_URL}/api/coins`)
+          fetch(`${API_URL}/api/coins`),
+          fetch(`${API_URL}/api/trending`)
         ])
 
         if (!statsRes.ok || !coinsRes.ok) {
@@ -62,9 +66,11 @@ export default function Dashboard() {
 
         const statsData = await statsRes.json()
         const coinsData = await coinsRes.json()
+        const trendingData = trendingRes.ok ? await trendingRes.json() : { count: 0 }
 
         setStats(statsData)
         setCoins(coinsData.coins || [])
+        setTrendingCount(trendingData.count || 0)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
       } finally {
@@ -118,12 +124,14 @@ export default function Dashboard() {
 
       {/* Stats Row - 4 cards showing key metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          title="Coins Tracked"
-          value={stats?.total_coins || 0}
-          icon="📊"
-          subtitle="Active tracking"
-        />
+        <Link href="/trending">
+          <StatsCard
+            title="Trending Coins"
+            value={trendingCount}
+            icon="🔥"
+            subtitle="Currently trending"
+          />
+        </Link>
         <StatsCard
           title="Avg Sentiment"
           value={avgSentiment.toFixed(2)}
@@ -134,14 +142,14 @@ export default function Dashboard() {
         <StatsCard
           title="Hype Index"
           value={`${Math.round(stats?.avg_hype_24h || 0)}/100`}
-          icon="🔥"
+          icon="🚀"
           subtitle={(stats?.avg_hype_24h || 0) > 50 ? 'Elevated' : 'Normal'}
         />
         <StatsCard
           title="Social Posts"
           value={(stats?.record_counts?.reddit_posts || 0) + (stats?.record_counts?.tiktok_videos || 0)}
           icon="💬"
-          subtitle="Last 24h"
+          subtitle="Total collected"
         />
       </div>
 
@@ -160,10 +168,24 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Coin Table */}
-      <div className="card">
-        <h2 className="text-xl font-bold mb-4">All Coins</h2>
-        <CoinTable coins={coins} />
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Coin Table - 2/3 width */}
+        <div className="lg:col-span-2 card">
+          <h2 className="text-xl font-bold mb-4">All Coins</h2>
+          <CoinTable coins={coins} />
+        </div>
+
+        {/* Recent Posts - 1/3 width */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">Recent Posts</h2>
+            <Link href="/posts" className="text-sm text-accent hover:underline">
+              View all
+            </Link>
+          </div>
+          <RecentPosts limit={10} />
+        </div>
       </div>
     </div>
   )

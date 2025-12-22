@@ -39,6 +39,7 @@ export default function RootLayout({
             {/* Navigation Links */}
             <div className="flex gap-6">
               <Link href="/" className="hover:text-accent transition-colors">Dashboard</Link>
+              <Link href="/trending" className="hover:text-accent transition-colors">🔥 Trending</Link>
               <Link href="/coins" className="hover:text-accent transition-colors">Coins</Link>
               <Link href="/sentiment" className="hover:text-accent transition-colors">Sentiment</Link>
               <Link href="/events" className="hover:text-accent transition-colors">Events</Link>

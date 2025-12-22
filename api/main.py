@@ -630,6 +630,230 @@ async def get_analysis_summary():
 # ==================== HEALTH ====================
 
 
+@app.get("/api/trending")
+@limiter.limit("30/minute")
+@cache_response("trending")
+async def get_trending_coins(request: Request):
+    """Get currently trending coins"""
+    conn = get_db()
+    try:
+        query = """
+        SELECT
+            c.id,
+            c.symbol,
+            c.name,
+            c.coingecko_id,
+            c.is_trending,
+            c.trending_rank,
+            c.trending_since,
+            c.last_trending_check,
+            p.price_usd,
+            p.price_change_24h,
+            p.market_cap,
+            p.volume_24h
+        FROM coins c
+        LEFT JOIN (
+            SELECT coin_id, price_usd, price_change_24h, market_cap, volume_24h
+            FROM prices
+            WHERE (coin_id, timestamp) IN (
+                SELECT coin_id, MAX(timestamp)
+                FROM prices
+                GROUP BY coin_id
+            )
+        ) p ON c.id = p.coin_id
+        WHERE c.is_trending = 1
+        ORDER BY c.trending_rank ASC
+        """
+
+        cursor = conn.execute(query)
+        coins = []
+        for row in cursor.fetchall():
+            coins.append({
+                "id": row["id"],
+                "symbol": row["symbol"],
+                "name": row["name"],
+                "coingecko_id": row["coingecko_id"],
+                "is_trending": bool(row["is_trending"]),
+                "trending_rank": row["trending_rank"],
+                "trending_since": row["trending_since"],
+                "last_trending_check": row["last_trending_check"],
+                "price_usd": row["price_usd"],
+                "price_change_24h": row["price_change_24h"],
+                "market_cap": row["market_cap"],
+                "volume_24h": row["volume_24h"]
+            })
+
+        return {
+            "trending_coins": coins,
+            "count": len(coins),
+            "last_update": datetime.utcnow().isoformat()
+        }
+    finally:
+        conn.close()
+
+
+@app.get("/api/posts/recent")
+@limiter.limit("30/minute")
+@cache_response("recent_posts")
+async def get_recent_posts(
+    request: Request,
+    limit: int = Query(default=50, le=100),
+    platform: Optional[str] = Query(default=None)
+):
+    """Get recent social media posts with sentiment"""
+    conn = get_db()
+    try:
+        # Build query based on platform filter
+        if platform == "reddit":
+            query = """
+            SELECT
+                r.id,
+                r.coin_id,
+                c.symbol,
+                c.name,
+                'reddit' as platform,
+                r.post_id,
+                r.title,
+                r.body,
+                r.author,
+                r.subreddit,
+                r.score,
+                r.num_comments,
+                r.created_utc,
+                NULL as sentiment_score,
+                NULL as hype_score
+            FROM reddit_posts r
+            JOIN coins c ON r.coin_id = c.id
+            ORDER BY r.created_utc DESC
+            LIMIT ?
+            """
+            cursor = conn.execute(query, (limit,))
+        else:
+            # Get mix of all platforms
+            query = """
+            SELECT
+                r.id,
+                r.coin_id,
+                c.symbol,
+                c.name,
+                'reddit' as platform,
+                r.post_id,
+                r.title,
+                r.body as content,
+                r.author,
+                r.subreddit as source,
+                r.score as engagement,
+                r.num_comments,
+                r.created_utc,
+                NULL as sentiment_score,
+                NULL as hype_score
+            FROM reddit_posts r
+            JOIN coins c ON r.coin_id = c.id
+            ORDER BY r.created_utc DESC
+            LIMIT ?
+            """
+            cursor = conn.execute(query, (limit,))
+
+        posts = []
+        for row in cursor.fetchall():
+            posts.append({
+                "id": row["id"],
+                "coin_id": row["coin_id"],
+                "symbol": row["symbol"],
+                "coin_name": row["name"],
+                "platform": row["platform"],
+                "post_id": row["post_id"],
+                "title": row["title"] if "title" in row.keys() else None,
+                "content": row["content"] if "content" in row.keys() else row.get("body"),
+                "author": row["author"],
+                "source": row["source"] if "source" in row.keys() else row.get("subreddit"),
+                "engagement": row["engagement"] if "engagement" in row.keys() else row.get("score"),
+                "comments": row["num_comments"] if "num_comments" in row.keys() else 0,
+                "created_at": row["created_utc"],
+                "sentiment_score": row["sentiment_score"],
+                "hype_score": row["hype_score"]
+            })
+
+        return {
+            "posts": posts,
+            "count": len(posts),
+            "platform": platform or "all"
+        }
+    finally:
+        conn.close()
+
+
+@app.get("/api/sentiment/timeline")
+@limiter.limit("30/minute")
+@cache_response("sentiment_timeline")
+async def get_sentiment_timeline(
+    request: Request,
+    symbol: Optional[str] = Query(default=None),
+    hours: int = Query(default=168, le=720)  # Default 7 days, max 30 days
+):
+    """Get sentiment timeline for a coin or all coins"""
+    conn = get_db()
+    try:
+        if symbol:
+            # Specific coin
+            query = """
+            SELECT
+                s.timestamp,
+                s.sentiment_score,
+                s.hype_score,
+                s.post_count,
+                s.total_engagement,
+                c.symbol,
+                c.name,
+                p.price_usd
+            FROM sentiment_scores s
+            JOIN coins c ON s.coin_id = c.id
+            LEFT JOIN prices p ON s.coin_id = p.coin_id
+                AND ABS(CAST((julianday(s.timestamp) - julianday(p.timestamp)) * 24 * 60 AS INTEGER)) < 60
+            WHERE c.symbol = ?
+                AND s.timestamp > datetime('now', '-' || ? || ' hours')
+            ORDER BY s.timestamp DESC
+            """
+            cursor = conn.execute(query, (symbol.upper(), hours))
+        else:
+            # All coins aggregated
+            query = """
+            SELECT
+                s.timestamp,
+                AVG(s.sentiment_score) as sentiment_score,
+                AVG(s.hype_score) as hype_score,
+                SUM(s.post_count) as post_count,
+                SUM(s.total_engagement) as total_engagement
+            FROM sentiment_scores s
+            WHERE s.timestamp > datetime('now', '-' || ? || ' hours')
+            GROUP BY s.timestamp
+            ORDER BY s.timestamp DESC
+            """
+            cursor = conn.execute(query, (hours,))
+
+        timeline = []
+        for row in cursor.fetchall():
+            timeline.append({
+                "timestamp": row["timestamp"],
+                "sentiment_score": row["sentiment_score"],
+                "hype_score": row["hype_score"],
+                "post_count": row["post_count"],
+                "total_engagement": row["total_engagement"],
+                "symbol": row["symbol"] if "symbol" in row.keys() else None,
+                "name": row["name"] if "name" in row.keys() else None,
+                "price_usd": row["price_usd"] if "price_usd" in row.keys() else None
+            })
+
+        return {
+            "timeline": timeline,
+            "count": len(timeline),
+            "symbol": symbol,
+            "hours": hours
+        }
+    finally:
+        conn.close()
+
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
