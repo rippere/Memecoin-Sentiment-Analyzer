@@ -1,0 +1,150 @@
+# Trending Coin Data Collection with Reddit Sentiment
+# ====================================================
+# Automated workflow that:
+# 1. Updates trending coin list from CoinGecko
+# 2. Collects Reddit posts for trending coins
+# 3. Analyzes sentiment using VADER
+# 4. Stores results in database
+#
+# Runs every 3 hours to respect API rate limits
+# Estimated usage: ~240 runs/month, ~8 hours/month (well within free tier)
+
+name: Collect Trending Data
+
+on:
+  # Scheduled runs - every 3 hours
+  schedule:
+    - cron: '0 */3 * * *'  # Every 3 hours
+
+  # Manual trigger (for testing)
+  workflow_dispatch:
+
+concurrency:
+  group: trending-collection
+  cancel-in-progress: false
+
+jobs:
+  collect-trending-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # Generous timeout for Reddit API calls
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for proper commits
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements_scrapers.txt
+
+      - name: Create directories
+        run: mkdir -p data logs
+
+      - name: Create .env file with credentials
+        run: |
+          cat > .env << EOF
+          # Reddit API Credentials (from GitHub Secrets)
+          REDDIT_CLIENT_ID=${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET=${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT=MemecoinsAnalyzer/1.0
+          EOF
+        env:
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+
+      - name: Check Reddit credentials
+        run: |
+          if [ -z "${{ secrets.REDDIT_CLIENT_ID }}" ]; then
+            echo "::warning::REDDIT_CLIENT_ID not set in GitHub Secrets"
+            echo "Reddit data collection will be skipped"
+            echo "To enable: Go to Settings > Secrets > Actions > New repository secret"
+          else
+            echo "Reddit credentials found"
+          fi
+
+      - name: Run trending data collection
+        run: |
+          python collect_trending_data.py
+        continue-on-error: true  # Don't fail workflow if Reddit API is down
+
+      - name: Check collection results
+        run: |
+          if [ -f data/memecoin.db ]; then
+            echo "Database stats:"
+            sqlite3 data/memecoin.db <<EOF
+          SELECT 'Total coins:' AS metric, COUNT(*) AS value FROM coins
+          UNION ALL
+          SELECT 'Trending coins:', COUNT(*) FROM coins WHERE is_trending=1
+          UNION ALL
+          SELECT 'Total prices:', COUNT(*) FROM prices
+          UNION ALL
+          SELECT 'Total Reddit posts:', COUNT(*) FROM reddit_posts
+          UNION ALL
+          SELECT 'Sentiment records:', COUNT(*) FROM sentiment_scores;
+          EOF
+          else
+            echo "No database file found"
+          fi
+
+      - name: Commit data changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          # Add data directory (contains database)
+          git add data/ 2>/dev/null || true
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            # Create commit message with statistics
+            TRENDING_COUNT=$(sqlite3 data/memecoin.db "SELECT COUNT(*) FROM coins WHERE is_trending=1" 2>/dev/null || echo "0")
+            POSTS_COUNT=$(sqlite3 data/memecoin.db "SELECT COUNT(*) FROM reddit_posts" 2>/dev/null || echo "0")
+
+            git commit -m "Trending data: $(date -u +%Y-%m-%d\ %H:%M\ UTC)
+
+          - Trending coins: ${TRENDING_COUNT}
+          - Total Reddit posts: ${POSTS_COUNT}
+
+          Automated collection via GitHub Actions"
+
+            git push
+            echo "Data committed and pushed"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Collection Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f data/memecoin.db ]; then
+            echo "✅ Database updated successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            echo "#### Statistics" >> $GITHUB_STEP_SUMMARY
+            sqlite3 data/memecoin.db "
+            SELECT '- **Trending coins:** ' || COUNT(*) FROM coins WHERE is_trending=1
+            UNION ALL
+            SELECT '- **Reddit posts:** ' || COUNT(*) FROM reddit_posts
+            UNION ALL
+            SELECT '- **Sentiment records:** ' || COUNT(*) FROM sentiment_scores
+            " >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Database not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload database artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-${{ github.run_number }}
+          path: data/memecoin.db
+          retention-days: 7
