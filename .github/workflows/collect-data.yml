@@ -133,8 +133,10 @@ jobs:
             # Show some stats using sqlite3
             sqlite3 data/memecoin.db <<EOF
           SELECT 'Prices collected:' AS info, COUNT(*) AS count FROM prices;
-          SELECT 'Latest price:' AS info, symbol, price_usd, timestamp
-            FROM prices ORDER BY timestamp DESC LIMIT 1;
+          SELECT 'Latest price:' AS info, c.symbol, p.price_usd, p.timestamp
+            FROM prices p
+            JOIN coins c ON p.coin_id = c.id
+            ORDER BY p.timestamp DESC LIMIT 1;
           EOF
           else
             echo "No database file found"
