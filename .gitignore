@@ -67,8 +67,7 @@ frontend/build/
 frontend/.cache/
 frontend/*.tsbuildinfo
 
-# Test files
-test_*.py
+# Test output files
 test_*.json
 test_*.html
 debug_*.py
@@ -77,3 +76,20 @@ tiktok_page_source.html
 
 # Events data (temporary)
 events/events.json
+
+# Claude Code session files
+.claude/
+CLAUDE.md
+
+# Internal planning artifacts
+NARRATIVE.md
+PLANNING_WORKFLOW.md
+*_ROADMAP.md
+IMPLEMENTATION_SUMMARY.md
+STATUS_REPORT.txt
+WEEK1_PROGRESS.md
+sync_to_github.sh
+QUICK_COMMANDS.md
+
+# Data directory (collected data, not source)
+data/
